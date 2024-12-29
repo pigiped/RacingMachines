@@ -9,6 +9,12 @@
 #include "constants.h"
 #include "Track.h"
 #include "Collider.h"
+#include "Font.h"
+#include <string>
+#include <sstream>
+#include <iomanip>
+
+
 
 using namespace std;
 
@@ -16,6 +22,8 @@ static TextureManager* textureManager = nullptr;
 static SDL_Texture* playerTexture = nullptr;
 static SDL_Texture* trackTexture = nullptr;
 list<GameObject*> gameObjects;
+SDL_Texture* fontTexture = nullptr;
+bool isTimerStarted = true;
 
 int processEvents(SDL_Window* window)
 {
@@ -42,6 +50,9 @@ int processEvents(SDL_Window* window)
 			case SDLK_ESCAPE:
 				done = 1;
 				break;
+			case SDLK_SPACE:
+				isTimerStarted = !isTimerStarted;
+				break;
 			}
 		}
 		break;
@@ -52,6 +63,7 @@ int processEvents(SDL_Window* window)
 	}
 
 	const Uint8* state = SDL_GetKeyboardState(NULL);
+
 	Player* player = nullptr;
 
 	for (auto gameObject : gameObjects)
@@ -146,29 +158,17 @@ void InitColliders()
 	gameObjects.push_back(collider12);
 }
 
-SDL_Texture* loadFont(SDL_Renderer* renderer, const std::string& name)
+string GetTimerString(float ticks)
 {
-	TTF_Font* font = TTF_OpenFont(name.c_str(), 24);
-	if (font == NULL)
-	{
-		printf("TTF_OpenFont: %s\n", TTF_GetError());
-	}
-	SDL_Color color = { 255, 255, 255 };
-	SDL_Surface* surface = TTF_RenderText_Solid(font, "Hello World", color);
-	if (surface == NULL)
-	{
-		printf("TTF_RenderText_Solid: %s\n", TTF_GetError());
-	}
-	SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-	if (texture == NULL)
-	{
-		printf("SDL_CreateTextureFromSurface: %s\n", SDL_GetError());
-	}
-
-	SDL_FreeSurface(surface);
-	TTF_CloseFont(font);
-
-	return texture;
+    stringstream timerText;
+    timerText.str("");
+    int minutes = static_cast<int>(ticks / 60000);
+    int seconds = static_cast<int>((ticks - (minutes * 60000)) / 1000);
+    int milliseconds = static_cast<int>(ticks) % 1000;
+    timerText << "Tempo: " << setfill('0') << setw(2) << minutes << ":"
+              << setfill('0') << setw(2) << seconds << ":"
+              << setfill('0') << setw(3) << milliseconds;
+    return timerText.str();
 }
 
 int main(int argc, char* argv[])
@@ -206,17 +206,17 @@ int main(int argc, char* argv[])
 	player->setPos(640, 630);
 	player->setDim(32*2, 13*2);
 
+	Font* font = new Font("crazy-pixel.ttf");
+	font->setPos(464, 240);
+	font->setDim(431, 143);
+
 	gameObjects.push_back(track);
+	gameObjects.push_back(font);
 	gameObjects.push_back(player);
 
 	InitColliders();
 
-	SDL_Texture* fontTexture = loadFont(renderer, "crazy-pixel.ttf");
-	if (fontTexture == nullptr)
-	{
-		printf("Failed to load font texture.\n");
-		return -1;
-	}
+	font->setText(GetTimerString(0).c_str(), { 255,255,255,255 }, renderer);
 
 	int done = 0;
 
@@ -234,10 +234,10 @@ int main(int argc, char* argv[])
 				}
 			}
 		}
-		/*
-		SDL_Rect rect = { 100,100,100,100 };
-		SDL_RenderCopy(renderer, fontTexture, nullptr, &rect);
-		*/
+		if (isTimerStarted)
+		{
+			font->setText(GetTimerString(SDL_GetTicks()).c_str(), { 255,255,255,255 }, renderer);
+		}
 		doRender(renderer);
 
 	}
@@ -257,7 +257,7 @@ int main(int argc, char* argv[])
 
 	delete textureManager;
 
-	SDL_Quit();
 	TTF_Quit();
+	SDL_Quit();
 	return 0;
 }
